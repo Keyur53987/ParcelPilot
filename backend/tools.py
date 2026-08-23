@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 CURRENT_ROLE = "Internal Agent"
 
-DATA_PATH = "../AI Agent Assessment - Candidate Pack/ParcelPilot_Assessment_Data.xlsx"
+DATA_PATH = "./data/ParcelPilot_Assessment_Data.xlsx"
 
 try:
     accounts_df = pd.read_excel(DATA_PATH, sheet_name="accounts")

@@ -4,7 +4,7 @@ from chromadb.utils import embedding_functions
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-DATA_DIR = "../AI Agent Assessment - Candidate Pack"
+DATA_DIR = "./data"
 DB_DIR = "./chroma_db"
 
 def extract_text_from_pdf(file_path):
