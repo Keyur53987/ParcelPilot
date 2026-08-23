@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParcelPilot AI Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container { height: calc(100vh - 200px); }
+        .message { max-width: 80%; }
+        .user-msg { background-color: #2563eb; color: white; align-self: flex-end; border-radius: 1rem 1rem 0 1rem; }
+        .bot-msg { background-color: #f3f4f6; color: #1f2937; align-self: flex-start; border-radius: 1rem 1rem 1rem 0; }
+        .tool-msg { font-size: 0.8rem; color: #6b7280; font-style: italic; align-self: center; margin: 0.5rem 0; }
+        
+        .modal { display: none; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-blue-600">ParcelPilot AI</h1>
+        <div class="flex gap-2">
+            <select id="userRole" class="border p-2 rounded text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="Internal Agent">Role: Internal Agent</option>
+                <option value="Customer: Northstar Logistics">Role: Customer (Northstar)</option>
+                <option value="Customer: LumenWorks">Role: Customer (LumenWorks)</option>
+            </select>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 flex flex-col">
+        <div id="chat-box" class="chat-container bg-white shadow-md rounded-lg p-4 overflow-y-auto flex flex-col gap-3 flex-grow">
+            <div class="bot-msg p-3 message">Hello! I am the ParcelPilot internal support agent. How can I help you today?</div>
+        </div>
+
+        <div class="mt-4 flex gap-2">
+            <input type="text" id="userInput" class="flex-grow border p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" placeholder="Ask about an order, ticket, or policy..." onkeypress="handleEnter(event)">
+            <button onclick="sendMessage()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 shadow-sm transition-colors font-medium">Send</button>
+        </div>
+    </main>
+
+    <!-- Confirmation Modal -->
+    <div id="actionModal" class="modal fixed inset-0 bg-black bg-opacity-50 justify-center items-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h2 class="text-xl font-bold mb-4 text-red-600">Action Confirmation Required</h2>
+            <p id="actionDetails" class="mb-6 text-gray-700"></p>
+            <div class="flex justify-end gap-3">
+                <button onclick="confirmAction(false)" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Reject</button>
+                <button onclick="confirmAction(true)" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold">Approve</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('userInput');
+        const actionModal = document.getElementById('actionModal');
+        const actionDetails = document.getElementById('actionDetails');
+        
+        let pendingToolCallId = null;
+
+        function appendMessage(text, type) {
+            const div = document.createElement('div');
+            div.className = `p-3 message ${type}`;
+            div.innerHTML = text.replace(/\n/g, '<br>');
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            
+            const userRole = document.getElementById('userRole').value;
+
+            appendMessage(text, 'user-msg');
+            userInput.value = '';
+            userInput.disabled = true;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-User-Role': userRole
+                    },
+                    body: JSON.stringify({ message: text, session_id: 'user1' })
+                });
+                
+                const data = await res.json();
+                handleResponse(data);
+            } catch (err) {
+                appendMessage("Error communicating with server.", 'bot-msg');
+                userInput.disabled = false;
+            }
+        }
+
+        function handleResponse(data) {
+            if (data.status === 'action_required') {
+                const action = data.action;
+                pendingToolCallId = action.tool_call_id;
+                
+                // Show tools used if any
+                data.messages.forEach(msg => {
+                    if (msg.role === 'ai' && msg.content) {
+                        appendMessage(msg.content, 'bot-msg');
+                    }
+                });
+
+                actionDetails.innerHTML = `<strong>Action:</strong> ${action.action_type}<br><strong>Arguments:</strong> ${JSON.stringify(action.args)}`;
+                actionModal.classList.add('active');
+            } else if (data.status === 'success') {
+                const msgs = data.messages;
+                // Just show the last AI message
+                for (let i = msgs.length - 1; i >= 0; i--) {
+                    if (msgs[i].role === 'ai' && msgs[i].content) {
+                        appendMessage(msgs[i].content, 'bot-msg');
+                        break;
+                    }
+                }
+                userInput.disabled = false;
+                userInput.focus();
+            } else {
+                appendMessage(data.detail || "Unknown error", 'bot-msg');
+                userInput.disabled = false;
+            }
+        }
+
+        async function confirmAction(approved) {
+            actionModal.classList.remove('active');
+            appendMessage(approved ? "<em>Approving action...</em>" : "<em>Rejecting action...</em>", 'tool-msg');
+            
+            const userRole = document.getElementById('userRole').value;
+            try {
+                const res = await fetch('/api/confirm_action', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-User-Role': userRole
+                    },
+                    body: JSON.stringify({ 
+                        tool_call_id: pendingToolCallId, 
+                        action_approved: approved,
+                        session_id: 'user1'
+                    })
+                });
+                
+                const data = await res.json();
+                handleResponse(data);
+            } catch (err) {
+                appendMessage("Error confirming action.", 'bot-msg');
+                userInput.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

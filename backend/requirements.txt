@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+groq
+pandas
+openpyxl
+chromadb
+pypdf
+python-dotenv
+langchain-groq
+langchain-community
+langgraph
