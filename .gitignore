@@ -14,7 +14,6 @@ __pycache__/
 *.so
 
 # Database / Local State
-backend/chroma_db/
 *.sqlite3
 
 # OS generated files

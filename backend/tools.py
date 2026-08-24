@@ -16,13 +16,19 @@ try:
 except Exception as e:
     print(f"Failed to load Excel data: {e}")
 
-try:
-    client = chromadb.PersistentClient(path="./chroma_db")
-    sentence_transformer_ef = embedding_functions.DefaultEmbeddingFunction()
-    collection = client.get_collection(name="parcelpilot_docs", embedding_function=sentence_transformer_ef)
-except Exception as e:
-    print(f"Failed to load ChromaDB: {e}")
-    collection = None
+# We initialize the collection lazily to avoid memory spikes on startup (OOM limits on Render free tier)
+_collection = None
+
+def get_collection():
+    global _collection
+    if _collection is None:
+        try:
+            client = chromadb.PersistentClient(path="./chroma_db")
+            sentence_transformer_ef = embedding_functions.DefaultEmbeddingFunction()
+            _collection = client.get_collection(name="parcelpilot_docs", embedding_function=sentence_transformer_ef)
+        except Exception as e:
+            print(f"Failed to load ChromaDB: {e}")
+    return _collection
 
 @tool
 def search_documents(query: str, include_deprecated: bool = False):
@@ -30,8 +36,9 @@ def search_documents(query: str, include_deprecated: bool = False):
     Search the ParcelPilot policies, SOPs, and agreements for answers.
     Set include_deprecated to True only if specifically asked about old policies.
     """
+    collection = get_collection()
     if not collection:
-        return "Vector database not initialized."
+        return "Vector database not initialized or failed to load."
     
     where_clause = {}
     if not include_deprecated:
