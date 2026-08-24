@@ -72,6 +72,15 @@
             if (e.key === 'Enter') sendMessage();
         }
 
+        let sessionId = "session_" + Math.random().toString(36).substr(2, 9);
+        
+        // Reset session when role changes
+        document.getElementById('userRole').addEventListener('change', () => {
+            sessionId = "session_" + Math.random().toString(36).substr(2, 9);
+            chatBox.innerHTML = '';
+            appendMessage(`Session reset. You are now acting as: ${document.getElementById('userRole').value}`, 'bot-msg');
+        });
+        
         async function sendMessage() {
             const text = userInput.value.trim();
             if (!text) return;
@@ -89,7 +98,7 @@
                         'Content-Type': 'application/json',
                         'X-User-Role': userRole
                     },
-                    body: JSON.stringify({ message: text, session_id: 'user1' })
+                    body: JSON.stringify({ message: text, session_id: sessionId })
                 });
                 
                 const data = await res.json();
@@ -152,7 +161,7 @@
                     body: JSON.stringify({ 
                         tool_call_id: pendingToolCallId, 
                         action_approved: approved,
-                        session_id: 'user1'
+                        session_id: sessionId
                     })
                 });
                 

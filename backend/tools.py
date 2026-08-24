@@ -80,11 +80,25 @@ def query_operational_data(query: str):
             result += f"Order Data:\n{order.iloc[0].to_json()}\n"
     if "ACCT-" in query:
         acct_id = [word for word in query.split() if "ACCT-" in word][0]
-        acct = accounts_df[accounts_df['account_id'] == acct_id]
-        if not acct.empty:
-            if allowed_account and acct_id != allowed_account:
-                return f"[ACCESS DENIED] You do not have permission to view data for account {acct_id}."
-            result += f"Account Data:\n{acct.iloc[0].to_json()}\n"
+        wants_orders = "ORDER" in query
+        wants_tickets = "TICKET" in query
+        
+        if allowed_account and acct_id != allowed_account:
+            return f"[ACCESS DENIED] You do not have permission to view data for account {acct_id}."
+            
+        if wants_orders:
+            acct_orders = orders_df[orders_df['account_id'] == acct_id]
+            result += f"Orders for {acct_id}:\n{acct_orders.to_json(orient='records')}\n"
+            
+        if wants_tickets:
+            acct_tickets = tickets_df[tickets_df['account_id'] == acct_id]
+            result += f"Tickets for {acct_id}:\n{acct_tickets.to_json(orient='records')}\n"
+            
+        if not wants_orders and not wants_tickets:
+            acct = accounts_df[accounts_df['account_id'] == acct_id]
+            if not acct.empty:
+                result += f"Account Data:\n{acct.iloc[0].to_json()}\n"
+                
     if "TKT-" in query:
         tkt_id = [word for word in query.split() if "TKT-" in word][0]
         tkt = tickets_df[tickets_df['ticket_id'] == tkt_id]
