@@ -62,9 +62,12 @@ def chat(req: ChatRequest, request: Request):
     
     # Run agent
     try:
+        old_len = len(state["messages"])
         result = agent.invoke(state)
         # update state
         sessions[req.session_id] = result
+        
+        new_msgs = result["messages"][old_len:]
         
         # Check if action required
         action_req = result.get("action_required")
@@ -72,12 +75,12 @@ def chat(req: ChatRequest, request: Request):
             return JSONResponse({
                 "status": "action_required",
                 "action": action_req,
-                "messages": [{"role": m.type, "content": m.content} for m in result["messages"][-2:]] # send recent
+                "messages": [{"role": m.type, "content": m.content, "tool_calls": getattr(m, "tool_calls", [])} for m in new_msgs]
             })
             
         return JSONResponse({
             "status": "success",
-            "messages": [{"role": m.type, "content": str(m.content)} for m in result["messages"]]
+            "messages": [{"role": m.type, "content": str(m.content), "tool_calls": getattr(m, "tool_calls", [])} for m in new_msgs]
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,7 +111,6 @@ def confirm_action(req: ConfirmActionRequest, request: Request):
     state["action_required"] = None
     
     # Continue agent
-    # Continue agent
     api_key = os.getenv("GROQ_API_KEY")
     model_name = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     
@@ -121,10 +123,13 @@ def confirm_action(req: ConfirmActionRequest, request: Request):
     # Update role in case it changed
     state["user_role"] = user_role
     
+    old_len = len(state["messages"])
     result = agent.invoke(state)
     sessions[req.session_id] = result
     
+    new_msgs = result["messages"][old_len:]
+    
     return JSONResponse({
         "status": "success",
-        "messages": [{"role": m.type, "content": str(m.content)} for m in result["messages"]]
+        "messages": [{"role": m.type, "content": str(m.content), "tool_calls": getattr(m, "tool_calls", [])} for m in new_msgs]
     })

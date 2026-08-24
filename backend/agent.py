@@ -29,18 +29,35 @@ def create_agent(groq_api_key: str, model_name: str = "llama3-8b-8192"):
         return "continue"
         
     def call_model(state: AgentState):
-        messages = state['messages']
-        # Add system prompt if not present
-        if not any(isinstance(m, SystemMessage) for m in messages):
-            sys_msg = SystemMessage(content='''You are an internal support AI agent for ParcelPilot. 
+        messages = list(state['messages']) # Make a copy
+        user_role = state.get('user_role', 'Internal Agent')
+        
+        account_context = ""
+        if "Northstar" in user_role:
+            account_context = "Your account ID is ACCT-001 (Northstar Logistics)."
+        elif "LumenWorks" in user_role:
+            account_context = "Your account ID is ACCT-002 (LumenWorks)."
+        else:
+            account_context = "You are an internal ParcelPilot operations agent with access to all accounts."
+            
+        sys_msg_content = f'''You are an AI support agent for ParcelPilot. 
+Your current active user role is: {user_role}.
+{account_context}
+
 Your goal is to investigate customer issues, answer support questions, and help operations staff.
 You have tools to search documents and query operational data.
 You can also escalate and update tickets, but these actions require user confirmation.
 Always explain your reasoning based on the provided documents and data.
 Prioritize 'CURRENT' policies over 'DEPRECATED' policies unless asked otherwise.
 If a customer's specific agreement (like Northstar Logistics) contradicts a general policy, follow the customer's agreement.
-''')
-            messages = [sys_msg] + messages
+If the user asks about "my orders", "my account", or "my tickets", automatically use their account ID to query the data without asking them for it.
+'''
+        
+        # Add or replace system prompt
+        if messages and isinstance(messages[0], SystemMessage):
+            messages[0] = SystemMessage(content=sys_msg_content)
+        else:
+            messages.insert(0, SystemMessage(content=sys_msg_content))
             
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}

@@ -105,8 +105,12 @@
                 const action = data.action;
                 pendingToolCallId = action.tool_call_id;
                 
-                // Show tools used if any
                 data.messages.forEach(msg => {
+                    if (msg.role === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
+                        msg.tool_calls.forEach(tc => {
+                            appendMessage(`🔧 Using tool: <b>${tc.name}</b>`, 'tool-msg');
+                        });
+                    }
                     if (msg.role === 'ai' && msg.content) {
                         appendMessage(msg.content, 'bot-msg');
                     }
@@ -115,14 +119,16 @@
                 actionDetails.innerHTML = `<strong>Action:</strong> ${action.action_type}<br><strong>Arguments:</strong> ${JSON.stringify(action.args)}`;
                 actionModal.classList.add('active');
             } else if (data.status === 'success') {
-                const msgs = data.messages;
-                // Just show the last AI message
-                for (let i = msgs.length - 1; i >= 0; i--) {
-                    if (msgs[i].role === 'ai' && msgs[i].content) {
-                        appendMessage(msgs[i].content, 'bot-msg');
-                        break;
+                data.messages.forEach(msg => {
+                    if (msg.role === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
+                        msg.tool_calls.forEach(tc => {
+                            appendMessage(`🔧 Using tool: <b>${tc.name}</b>`, 'tool-msg');
+                        });
                     }
-                }
+                    if (msg.role === 'ai' && msg.content) {
+                        appendMessage(msg.content, 'bot-msg');
+                    }
+                });
                 userInput.disabled = false;
                 userInput.focus();
             } else {
